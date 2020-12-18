@@ -8,9 +8,7 @@
  *******************************************************************************/
 package org.eclipse.xtext.xtext.generator.grammarAccess
 
-import com.google.common.collect.Maps
 import com.google.inject.Binder
-import com.google.inject.Guice
 import com.google.inject.Inject
 import java.util.ArrayList
 import java.util.List
@@ -29,16 +27,17 @@ import org.eclipse.xtext.Grammar
 import org.eclipse.xtext.GrammarUtil
 import org.eclipse.xtext.Group
 import org.eclipse.xtext.Keyword
+import org.eclipse.xtext.Parameter
 import org.eclipse.xtext.ParserRule
 import org.eclipse.xtext.RuleCall
 import org.eclipse.xtext.TypeRef
 import org.eclipse.xtext.UnorderedGroup
 import org.eclipse.xtext.XtextRuntimeModule
 import org.eclipse.xtext.formatting.ILineSeparatorInformation
+import org.eclipse.xtext.nodemodel.util.NodeModelUtils
 import org.eclipse.xtext.resource.SaveOptions
 import org.eclipse.xtext.serializer.ISerializer
 import org.eclipse.xtext.xtext.RuleNames
-import org.eclipse.xtext.xtext.generator.CodeConfig
 import org.eclipse.xtext.xtext.generator.XtextGeneratorNaming
 import org.eclipse.xtext.xtext.generator.model.TypeReference
 import org.eclipse.xtext.xtext.generator.parser.antlr.AntlrGrammarGenUtil
@@ -48,7 +47,7 @@ import static extension java.lang.Character.*
 import static extension org.eclipse.xtext.EcoreUtil2.*
 import static extension org.eclipse.xtext.GrammarUtil.*
 import static extension org.eclipse.xtext.xtext.generator.parser.antlr.AntlrGrammarGenUtil.*
-import org.eclipse.xtext.Parameter
+import com.google.common.base.Strings
 
 /**
  * This API can be used by other templates to generate code
@@ -66,9 +65,6 @@ class GrammarAccessExtensions {
 		"\t" -> "tab",
 		"\\" -> "backslash"
 	};
-	val Map<String, ISerializer> xtextSerializerByLineDelimiter = Maps.newHashMapWithExpectedSize(2)
-	
-	@Inject CodeConfig codeConfig
 	
 	@Inject extension XtextGeneratorNaming
 	
@@ -396,8 +392,49 @@ class GrammarAccessExtensions {
 		}
 	}
 	
-	def String grammarFragmentToString(EObject ele, String prefix) {
-		return serializer.grammarFragmentToString(ele, prefix)
+	def String grammarFragmentToString(EObject object, String prefix) {
+		val node = NodeModelUtils.findActualNodeFor(object)
+		if (node === null) {
+			if (object instanceof RuleCall)
+				if (object?.rule?.name !== null)
+					return process(object.rule.name, prefix)
+			return ""
+		} else {
+			return node.text.process(prefix)
+		}
+	}
+
+	private def process(String input, String prefix) {
+		// remove leading and trailing blank lines
+		var lines = input.split('(\\r?\\n)')
+		var first = 0
+		while (isBlank(lines.get(first)))
+			first++
+		var last = lines.length - 1
+		while (isBlank(lines.get(last)))
+			last--
+		lines = lines.subList(first, last + 1)
+		// remove common whitespace (e.g. leading blanks) and add prefix to each line
+		val commonWhitespace = commonLeadingWhitespace(lines)
+		for (var n=0; n<lines.length; n++)
+			lines.set(n, prefix + lines.get(n).substring(commonWhitespace.length))
+		// generate result by joining lines
+		return lines.join(System.lineSeparator)
+	}
+
+	private def isBlank(String line) {
+		return line.trim.empty
+	}
+	
+	private def String commonLeadingWhitespace(List<String> lines) {
+		if(lines.size() < 2) return "";
+		var current = Strings.repeat(" ", lines.get(0).length())
+		for (var i = 0; i < lines.length; i++) {
+			val next = lines.get(i);
+			if (!isBlank(next))
+				current = Strings.commonPrefix(current, next);
+		}
+		return current;
 	}
 
 	/**
@@ -544,18 +581,6 @@ class GrammarAccessExtensions {
 			default:
 				"null"
 		}
-	}
-
-	private def ISerializer getSerializer() {
-		val delimiter = codeConfig.lineDelimiter
-		var result = xtextSerializerByLineDelimiter.get(delimiter)
-		if (result !== null) {
-			return result
-		}
-		val injector = Guice.createInjector(new LineSeparatorModule[delimiter])
-		result = injector.getInstance(ISerializer)
-		xtextSerializerByLineDelimiter.put(delimiter, result)
-		return result;
 	}
 
 	@FinalFieldsConstructor

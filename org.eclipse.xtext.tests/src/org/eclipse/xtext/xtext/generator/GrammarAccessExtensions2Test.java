@@ -70,12 +70,14 @@ public class GrammarAccessExtensions2Test {
 				"	| '?:';\n";
 		String expected = 
 				"//OpOther:" + NL +
-				"//	'->'" + NL +
+				"//	  '->'" + NL +
 				"//	| '..<'" + NL +
 				"//	| '>' '..'" + NL +
 				"//	| '..'" + NL +
 				"//	| '=>'" + NL +
-				"//	| '>' (=> ('>' '>') | '>') | '<' (=> ('<' '<') | '<' | '=>') | '<>'" + NL +
+				"//	| '>' (=>('>' '>') | '>')" + NL +
+				"//	| '<' (=>('<' '<') | '<' | '=>')" + NL +
+				"//	| '<>'" + NL +
 				"//	| '?:';";
 		firstRuleIsConvertedTo(
 				grammar,
